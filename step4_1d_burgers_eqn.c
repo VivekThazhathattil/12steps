@@ -1,3 +1,5 @@
+/*--- Reference: https://nbviewer.org/github/barbagroup/CFDPython/blob/master/lessons/05_Step_4.ipynb ---*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -11,6 +13,8 @@ typedef struct DOMAIN_s {
 } domain_t;
 
 typedef struct FIELD_s {
+  double nu;
+  double sigma;
   double *u;
   double *u_prev;
 } field_t;
@@ -78,9 +82,37 @@ int set_domain(domain_t *dom, int nx, double dx, int nt, double dt)
   return 0;
 }
 
-field_t* create_field(domain_t *dom) 
+double get_phi(double x, double t, double nu)
+{
+  return exp(-(x - 4*t) * (x - 4*t) / (4*nu * (t + 1))) + \
+         exp(-(x - 4*t -2*M_PI) * (x - 4*t -2*M_PI) / (4*nu*(t + 1)));
+}
+
+double get_phi_deriv(double x, double t, double nu)
+{
+  return -(2*x - 8*t) * \
+         exp(-(x - 4*t)*(x - 4*t) / (4*nu*(t + 1))) / \
+         (4*nu*(t + 1)) - \
+         (2*x - 8*t - 4*M_PI) * \
+         exp(-(x - 4*t - 2*M_PI) * (x - 4*t - 2*M_PI) / \
+         (4*nu*(t + 1))) / (4*nu*(t + 1));
+}
+
+double get_vel(double x, double t, double nu)
+{
+  return ((-2 * nu * get_phi_deriv(x, t, nu)) / get_phi(x, t, nu)) + 4;
+}
+
+int set_field_initial_conditions(domain_t *dom, field_t *field)
 {
   int i;
+  for(i = 0; i < dom->nx; ++i) {
+    field->u[i] = get_vel(dom->x[i], 0, field->nu);
+  }
+}
+
+field_t* create_field(domain_t *dom, double nu, double sigma) 
+{
   field_t *field;
   
   field = (field_t*) malloc(sizeof(field_t));
@@ -92,15 +124,10 @@ field_t* create_field(domain_t *dom)
     return NULL;
   }
 
-  for(i = 0; i < dom->nx; ++i) {
-    if(dom->x[i] <= 1.0 && dom->x[i] >= 0.5) {
-      field->u[i] = 2.0;
-    }
-    else {
-      field->u[i] = 1.0;
-    }
-  }
+  field->nu = nu;
+  field->sigma = sigma;
 
+  set_field_initial_conditions(dom, field);
   update_prev_field(field, dom);
 
   return field;
@@ -119,14 +146,46 @@ int free_field(field_t *field)
   free(field);
 }
 
-void execute_time_step(double (*c)(field_t*, int), domain_t *dom, field_t *field)
+int set_boundary_condition(field_t *field, domain_t *dom)
 {
-  int i;
-  double vel;
-  for(i = 1; i < dom->nx; ++i) {
-    vel = (double)(*c)(field, i);
-    field->u[i] = field->u_prev[i] - \
-       vel * (dom->dt/dom->dx) * (field->u_prev[i] - field->u_prev[i - 1]);
+  int i, n;
+  double c;
+  double dt, dx, nu;
+  double *u, *un;
+
+  u = field->u;
+  un = field->u_prev;
+  n = dom->nx;
+  dt = dom->dt;
+  dx = dom->dx;
+  nu = field->nu;
+  
+  u[n - 1] = un[n - 1] - 
+         un[n - 1] * (dt/dx) * (un[n - 1] - un[n - 2]) + 
+         nu * (dt/(dx * dx)) * (un[1] + un[n - 2] - 2 * un[n - 1]);
+  u[0] = u[n - 1];
+}
+
+void execute_time_step(double (*f)(field_t*, int), domain_t *dom, field_t *field)
+{
+  int i, n;
+  double c;
+  double dt, dx, nu;
+  double *u, *un;
+
+  u = field->u;
+  un = field->u_prev;
+  n = dom->nx;
+  dt = dom->dt;
+  dx = dom->dx;
+  nu = field->nu;
+
+  for(i = 1; i < n - 1; ++i) {
+    c = (double)(*f)(field, i);
+    u[i] = un[i] - 
+           un[i] * (dt/dx) * (un[i] - un[i - 1]) + 
+           nu * (dt/(dx * dx)) * (un[i + 1] + un[i - 1] - 2 * un[i]);
+    set_boundary_condition(field, dom);
   }
   update_prev_field(field, dom);
 }
@@ -165,6 +224,12 @@ void remove_file_if_exists(char* file_name)
 
 }
 
+int set_domain_dt_from_field(domain_t *dom, field_t *field)
+{
+  dom->dt = field->sigma * dom->dx * field->nu;
+  return 0;
+}
+
 int main()
 {
   domain_t *dom;
@@ -172,12 +237,13 @@ int main()
   int i, num_iters;
   char *file_name;
 
-  file_name = "step2_out.csv";
-  int n_sp_pts = 71;
+  file_name = "step4_out.csv";
+  int n_sp_pts = 101;
 
   dom = create_domain();
-  set_domain(dom, n_sp_pts, 2.0/(n_sp_pts - 1), 100, 2.5e-2);
-  field = create_field(dom);
+  set_domain(dom, n_sp_pts, (2.0 * M_PI)/(n_sp_pts - 1), 1000, -1);
+  field = create_field(dom, 0.07, 1.0);
+  set_domain_dt_from_field(dom, field);
 
   remove_file_if_exists(file_name);
   for(i = 0; i < dom->nt; ++i) {

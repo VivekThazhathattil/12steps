@@ -172,15 +172,14 @@ int main()
   int i, num_iters;
   char *file_name;
 
-  num_iters = 500;
   file_name = "step1_out.csv";
 
   dom = create_domain();
-  set_domain(dom, 101, 2.0/50, 20, 2.5e-3);
+  set_domain(dom, 101, 2.0/50, 20, 2.5e-2);
   field = create_field(dom);
 
   remove_file_if_exists(file_name);
-  for(i = 0; i < num_iters; ++i) {
+  for(i = 0; i < dom->nt; ++i) {
     write_to_file(file_name, field->u, dom->nx);
     execute_time_step(advection_velocity, dom, field);
   }

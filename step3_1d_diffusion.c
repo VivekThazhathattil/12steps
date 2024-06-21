@@ -11,6 +11,8 @@ typedef struct DOMAIN_s {
 } domain_t;
 
 typedef struct FIELD_s {
+  double nu;
+  double sigma;
   double *u;
   double *u_prev;
 } field_t;
@@ -78,7 +80,7 @@ int set_domain(domain_t *dom, int nx, double dx, int nt, double dt)
   return 0;
 }
 
-field_t* create_field(domain_t *dom) 
+field_t* create_field(domain_t *dom, double nu, double sigma) 
 {
   int i;
   field_t *field;
@@ -103,6 +105,9 @@ field_t* create_field(domain_t *dom)
 
   update_prev_field(field, dom);
 
+  field->nu = nu;
+  field->sigma = sigma;
+
   return field;
 }
 
@@ -119,14 +124,23 @@ int free_field(field_t *field)
   free(field);
 }
 
-void execute_time_step(double (*c)(field_t*, int), domain_t *dom, field_t *field)
+void execute_time_step(double (*f)(field_t*, int), domain_t *dom, field_t *field)
 {
-  int i;
-  double vel;
-  for(i = 1; i < dom->nx; ++i) {
-    vel = (double)(*c)(field, i);
-    field->u[i] = field->u_prev[i] - \
-       vel * (dom->dt/dom->dx) * (field->u_prev[i] - field->u_prev[i - 1]);
+  int i, n;
+  double c;
+  double dt, dx, nu;
+  double *u, *un;
+
+  u = field->u;
+  un = field->u_prev;
+  n = dom->nx;
+  dt = dom->dt;
+  dx = dom->dx;
+  nu = field->nu;
+
+  for(i = 1; i < n - 1; ++i) {
+    c = (double)(*f)(field, i);
+    u[i] = un[i] + ((nu * dt) / (dx * dx)) * (un[i + 1] + un[i - 1] - 2*un[i]);
   }
   update_prev_field(field, dom);
 }
@@ -165,6 +179,12 @@ void remove_file_if_exists(char* file_name)
 
 }
 
+int set_domain_dt_from_field(domain_t *dom, field_t *field)
+{
+  dom->dt = (field->sigma * dom->dx * dom->dx) / field->nu;
+  return 0;
+}
+
 int main()
 {
   domain_t *dom;
@@ -172,12 +192,13 @@ int main()
   int i, num_iters;
   char *file_name;
 
-  file_name = "step2_out.csv";
-  int n_sp_pts = 71;
+  file_name = "step3_out.csv";
+  int n_sp_pts = 41;
 
   dom = create_domain();
-  set_domain(dom, n_sp_pts, 2.0/(n_sp_pts - 1), 100, 2.5e-2);
-  field = create_field(dom);
+  set_domain(dom, n_sp_pts, 2.0/(n_sp_pts - 1), 1000, 2.5e-2);
+  field = create_field(dom, 0.3, 0.2);
+  set_domain_dt_from_field(dom, field);
 
   remove_file_if_exists(file_name);
   for(i = 0; i < dom->nt; ++i) {
