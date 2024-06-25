@@ -196,7 +196,7 @@ int main()
   int n_sp_pts = 41;
 
   dom = create_domain();
-  set_domain(dom, n_sp_pts, 2.0/(n_sp_pts - 1), 1000, 2.5e-2);
+  set_domain(dom, n_sp_pts, 2.0/(n_sp_pts - 1), 200, 2.5e-2);
   field = create_field(dom, 0.3, 0.2);
   set_domain_dt_from_field(dom, field);
 

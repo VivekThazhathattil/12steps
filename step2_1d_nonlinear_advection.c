@@ -133,8 +133,7 @@ void execute_time_step(double (*c)(field_t*, int), domain_t *dom, field_t *field
 
 double advection_velocity(field_t *field, int i) 
 {
-  return 1.0;
-  //return field->u_prev[i]; 
+  return field->u_prev[i]; 
 }
 
 void write_to_file(char* file_name, double *arr, int n) 
@@ -176,7 +175,7 @@ int main()
   int n_sp_pts = 71;
 
   dom = create_domain();
-  set_domain(dom, n_sp_pts, 2.0/(n_sp_pts - 1), 100, 2.5e-2);
+  set_domain(dom, n_sp_pts, 2.0/(n_sp_pts - 1), 200, 2.5e-3);
   field = create_field(dom);
 
   remove_file_if_exists(file_name);
