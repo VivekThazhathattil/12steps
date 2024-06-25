@@ -94,7 +94,7 @@ field_t* create_field(domain_t *dom)
 
   for(i = 0; i < dom->nx; ++i) {
     if(dom->x[i] <= 1.0 && dom->x[i] >= 0.5) {
-      field->u[i] = 2.0;
+      field->u[i] = 2.0 * sin(2*M_PI*5*dom->x[i]);
     }
     else {
       field->u[i] = 1.0;
@@ -172,10 +172,10 @@ int main()
   int i, num_iters;
   char *file_name;
 
-  file_name = "step1_out.csv";
+  file_name = "step5_out.csv";
 
   dom = create_domain();
-  set_domain(dom, 101, 2.0/50, 200, 2.5e-2);
+  set_domain(dom, 101, 2.0/50, 20, 2.5e-2);
   field = create_field(dom);
 
   remove_file_if_exists(file_name);
