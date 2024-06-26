@@ -4,15 +4,19 @@
 
 typedef struct DOMAIN_s {
   int nx;
-  int nt;
+  int ny;
   double dx;
+  double dy;
   double dt;
+  int nt;
   double *x;
+  double *y;
 } domain_t;
 
 typedef struct FIELD_s {
   double *u;
   double *u_prev;
+  double sigma;
 } field_t;
 
 int copy_field(double *src, double *dest, int n)
@@ -27,7 +31,7 @@ int copy_field(double *src, double *dest, int n)
 
 void update_prev_field(field_t *field, domain_t *dom) 
 {
-  copy_field(field->u, field->u_prev, dom->nx);
+  copy_field(field->u, field->u_prev, dom->nx * dom->ny);
 }
 
 
@@ -50,7 +54,7 @@ int setup_domain_spatial_points(domain_t *dom)
 {
   int i;
 
-  if(dom->x != NULL) {
+  if(dom->x != NULL || dom->y != NULL) {
     fprintf(stdout, "[ERROR] Spatial points array not empty!\n");
     return -1;
   }
@@ -59,17 +63,27 @@ int setup_domain_spatial_points(domain_t *dom)
     return -1;
   }
 
+  if(!(dom->y = (double*) malloc(sizeof(double) * dom->ny))) {
+    return -1;
+  }
+
   for(i = 0; i < dom->nx; ++i) {
     dom->x[i] = i * dom->dx;
+  }
+
+  for(i = 0; i < dom->ny; ++i) {
+    dom->y[i] = i * dom->dy;
   }
    
   return 0;
 }
 
-int set_domain(domain_t *dom, int nx, double dx, int nt, double dt)
+int set_domain(domain_t *dom, int nx, int ny, double dx, double dy, int nt, double dt)
 {
   dom->nx = nx;
+  dom->ny = ny;
   dom->dx = dx;
+  dom->dy = dy;
   dom->nt = nt;
   dom->dt = dt;
 
@@ -78,26 +92,43 @@ int set_domain(domain_t *dom, int nx, double dx, int nt, double dt)
   return 0;
 }
 
+int set_dt(domain_t *dom, field_t *field)
+{
+  dom->dt = field->sigma * dom->dx;
+  return 0;
+}
+
 field_t* create_field(domain_t *dom) 
 {
-  int i;
+  int i, j;
+  int nx, ny;
   field_t *field;
   
+  nx = dom->nx;
+  ny = dom->ny;
+
   field = (field_t*) malloc(sizeof(field_t));
-  if(!(field->u = (double*) calloc(dom->nx, sizeof(double)))) {
+  if(!(field->u = (double*) calloc(nx * ny, sizeof(double)))) {
     return NULL;
   }
 
-  if(!(field->u_prev = (double*) calloc(dom->nx, sizeof(double)))) {
+  if(!(field->u_prev = (double*) calloc(nx * ny, sizeof(double)))) {
     return NULL;
   }
 
-  for(i = 0; i < dom->nx; ++i) {
-    if(dom->x[i] <= 1.0 && dom->x[i] >= 0.5) {
-      field->u[i] = 2.0 * sin(2*M_PI*5*dom->x[i]);
-    }
-    else {
-      field->u[i] = 1.0;
+  field->sigma = 0.2;
+
+  for(i = 0; i < nx; ++i) {
+    for(j = 0; j < ny; ++j) {
+      if(dom->x[i] <= 1.0 && dom->x[i] >= 0.5 && \
+         dom->y[j] <= 1.0 && dom->y[j] >= 0.5) 
+      {
+        field->u[i*ny + j] = 2.0;
+      }
+      else 
+      {
+        field->u[i*ny + j] = 1.0;
+      }
     }
   }
 
@@ -109,6 +140,7 @@ field_t* create_field(domain_t *dom)
 int free_domain(domain_t *dom) 
 {
   free(dom->x);
+  free(dom->y);
   free(dom);
 
   return 0;
@@ -122,12 +154,28 @@ int free_field(field_t *field)
 
 void execute_time_step(double (*c)(void), domain_t *dom, field_t *field)
 {
-  int i;
-  double vel;
-  for(i = 1; i < dom->nx; ++i) {
-    vel = (double)(*c)();
-    field->u[i] = field->u_prev[i] - \
-       vel * (dom->dt/dom->dx) * (field->u_prev[i] - field->u_prev[i - 1]);
+  int i, j;
+  double v;
+  double *un, *u;
+  double dt, dx, dy;
+  int nx, ny;
+
+  u = field->u;
+  un = field->u_prev;
+
+  dt = dom->dt;
+  dx = dom->dx;
+  dy = dom->dy;
+  nx = dom->nx;
+  ny = dom->ny;
+
+  for(i = 1; i < nx; ++i) {
+    for(j = 1; j < ny; ++j) {
+      v = (double)(*c)();
+      u[i*ny + j] = un[i*ny + j] \
+              - v * (dt/dx) * (un[i*ny + j] - un[(i - 1)*ny + j]) \
+              - v * (dt/dy) * (un[i*ny + j] - un[i*ny + (j - 1)]);
+    }
   }
   update_prev_field(field, dom);
 }
@@ -175,12 +223,14 @@ int main()
   file_name = "step5_out.csv";
 
   dom = create_domain();
-  set_domain(dom, 101, 2.0/50, 20, 2.5e-2);
+  /*-- set_domain: dom, nx, ny, dx, dy, nt, dt --*/
+  set_domain(dom, 81, 81, 2.0/80, 2.0/80, 200, -1);
   field = create_field(dom);
+  set_dt(dom, field);
 
   remove_file_if_exists(file_name);
   for(i = 0; i < dom->nt; ++i) {
-    write_to_file(file_name, field->u, dom->nx);
+    write_to_file(file_name, field->u, dom->nx * dom->ny);
     execute_time_step(advection_velocity, dom, field);
   }
 
