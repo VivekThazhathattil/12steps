@@ -163,6 +163,9 @@ int free_domain(domain_t *dom)
 int free_field(field_t *field)
 {
   free(field->u);
+  free(field->u_prev);
+  free(field->v);
+  free(field->v_prev);
   free(field);
 }
 

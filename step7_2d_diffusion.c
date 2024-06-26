@@ -17,6 +17,7 @@ typedef struct FIELD_s {
   double *u;
   double *u_prev;
   double sigma;
+  double nu;
 } field_t;
 
 int copy_field(double *src, double *dest, int n)
@@ -95,11 +96,11 @@ int set_domain(domain_t *dom, int nx, int ny, double dx, double dy, int nt, doub
 
 int set_dt(domain_t *dom, field_t *field)
 {
-  dom->dt = field->sigma * dom->dx;
+  dom->dt = (field->sigma * dom->dx * dom->dy) / field->nu;
   return 0;
 }
 
-field_t* create_field(domain_t *dom) 
+field_t* create_field(domain_t *dom, double sigma, double nu) 
 {
   int i, j;
   int nx, ny;
@@ -117,7 +118,8 @@ field_t* create_field(domain_t *dom)
     return NULL;
   }
 
-  field->sigma = 0.2;
+  field->sigma = sigma;
+  field->nu = nu;
 
   for(i = 0; i < nx; ++i) {
     for(j = 0; j < ny; ++j) {
@@ -150,16 +152,17 @@ int free_domain(domain_t *dom)
 int free_field(field_t *field)
 {
   free(field->u);
-  free(field->u_prev);
   free(field);
 }
 
-void execute_time_step(double (*c)(void), domain_t *dom, field_t *field)
+void execute_time_step(double (*c)(int, field_t*, int), domain_t *dom, field_t *field)
 {
   int i, j;
-  double v;
   double *un, *u;
+  double *vn, *v;
+  double cx, cy;
   double dt, dx, dy;
+  double nu;
   int nx, ny;
 
   u = field->u;
@@ -171,20 +174,46 @@ void execute_time_step(double (*c)(void), domain_t *dom, field_t *field)
   nx = dom->nx;
   ny = dom->ny;
 
-  for(i = 1; i < nx; ++i) {
-    for(j = 1; j < ny; ++j) {
-      v = (double)(*c)();
+  nu = field->nu;
+
+  for(i = 1; i < nx - 1; ++i) {
+    for(j = 1; j < ny - 1; ++j) {
       u[i*ny + j] = un[i*ny + j] \
-              - v * (dt/dx) * (un[i*ny + j] - un[(i - 1)*ny + j]) \
-              - v * (dt/dy) * (un[i*ny + j] - un[i*ny + (j - 1)]);
+                    + ((nu * dt)/(dx * dx)) \
+                    * (un[(i + 1)*ny + j] + un[(i - 1)*ny + j] - 2*un[i*ny + j]) \
+                    + ((nu * dt)/(dy * dy)) \
+                    * (un[i*ny + (j + 1)] + un[i*ny + (j - 1)] - 2*un[i*ny + j]);
     }
   }
+
   update_prev_field(field, dom);
 }
 
-double advection_velocity() 
+int set_boundary_conditions(domain_t *dom, field_t *field)
 {
-  return 1.0; 
+  int i, j;
+  int nx, ny;
+  double *u;
+
+  nx = dom->nx;
+  ny = dom->ny;
+  u = field->u;
+
+  for(i = 0; i < nx; ++i) {
+    u[i*ny + (0)] = 1.0;
+    u[i*ny + (ny - 1)] = 1.0;
+  }
+  for(j = 0; j < ny; ++j) {
+    u[(0*ny) + j] = 1.0;
+    u[(nx - 1)*ny + j] = 1.0;
+  }
+
+  return 0;
+}
+
+double advection_velocity(int ndx, field_t* field, int i) 
+{
+  return 0;
 }
 
 void write_to_file(char* file_name, double *arr, int n) 
@@ -222,18 +251,19 @@ int main()
   int i, num_iters;
   char *file_name;
 
-  file_name = "step5_out.csv";
+  file_name = "step7_out.csv";
 
   dom = create_domain();
   /*-- set_domain: dom, nx, ny, dx, dy, nt, dt --*/
-  set_domain(dom, 81, 81, 2.0/80, 2.0/80, 200, -1);
-  field = create_field(dom);
+  set_domain(dom, 81, 81, 2.0/81, 2.0/81, 200, -1);
+  field = create_field(dom, 0.25, 0.05);
   set_dt(dom, field);
 
   remove_file_if_exists(file_name);
   for(i = 0; i < dom->nt; ++i) {
     write_to_file(file_name, field->u, dom->nx * dom->ny);
     execute_time_step(advection_velocity, dom, field);
+    set_boundary_conditions(dom, field);
   }
 
   free_field(field);
