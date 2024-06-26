@@ -8,3 +8,5 @@
 ![step4_anim](https://github.com/VivekThazhathattil/12steps/assets/63693789/4232ca5f-d2b4-48d4-acbb-4f8607fb2697)
 ## Step 5: 2D Linear Advection 
 ![step5_anim](https://github.com/VivekThazhathattil/12steps/assets/63693789/71663c97-c9bd-414c-ab5d-a9c2ed5a0c78)
+## Step 6: 2D Non-linear Convection
+![step6_anim](https://github.com/VivekThazhathattil/12steps/assets/63693789/c0005a8d-734d-461d-a8c0-707ea9df4605)
