@@ -16,6 +16,8 @@ typedef struct DOMAIN_s {
 typedef struct FIELD_s {
   double *u;
   double *u_prev;
+  double *v;
+  double *v_prev;
   double sigma;
   double nu;
 } field_t;
@@ -33,6 +35,7 @@ int copy_field(double *src, double *dest, int n)
 void update_prev_field(field_t *field, domain_t *dom) 
 {
   copy_field(field->u, field->u_prev, dom->nx * dom->ny);
+  copy_field(field->v, field->v_prev, dom->nx * dom->ny);
 }
 
 
@@ -110,11 +113,20 @@ field_t* create_field(domain_t *dom, double sigma, double nu)
   ny = dom->ny;
 
   field = (field_t*) malloc(sizeof(field_t));
+
   if(!(field->u = (double*) calloc(nx * ny, sizeof(double)))) {
     return NULL;
   }
 
   if(!(field->u_prev = (double*) calloc(nx * ny, sizeof(double)))) {
+    return NULL;
+  }
+
+  if(!(field->v = (double*) calloc(nx * ny, sizeof(double)))) {
+    return NULL;
+  }
+
+  if(!(field->v_prev = (double*) calloc(nx * ny, sizeof(double)))) {
     return NULL;
   }
 
@@ -127,10 +139,12 @@ field_t* create_field(domain_t *dom, double sigma, double nu)
          dom->y[j] <= 1.0 && dom->y[j] >= 0.5) 
       {
         field->u[i*ny + j] = 2.0;
+        field->v[i*ny + j] = 2.0;
       }
       else 
       {
         field->u[i*ny + j] = 1.0;
+        field->v[i*ny + j] = 1.0;
       }
     }
   }
@@ -153,6 +167,8 @@ int free_field(field_t *field)
 {
   free(field->u);
   free(field->u_prev);
+  free(field->v);
+  free(field->v_prev);
   free(field);
 }
 
@@ -168,6 +184,8 @@ void execute_time_step(double (*c)(int, field_t*, int), domain_t *dom, field_t *
 
   u = field->u;
   un = field->u_prev;
+  v = field->v;
+  vn = field->v_prev;
 
   dt = dom->dt;
   dx = dom->dx;
@@ -179,11 +197,19 @@ void execute_time_step(double (*c)(int, field_t*, int), domain_t *dom, field_t *
 
   for(i = 1; i < nx - 1; ++i) {
     for(j = 1; j < ny - 1; ++j) {
+      cx = c(1, field, i);
+      cy = c(2, field, i);
       u[i*ny + j] = un[i*ny + j] \
-                    + ((nu * dt)/(dx * dx)) \
-                    * (un[(i + 1)*ny + j] + un[(i - 1)*ny + j] - 2*un[i*ny + j]) \
-                    + ((nu * dt)/(dy * dy)) \
-                    * (un[i*ny + (j + 1)] + un[i*ny + (j - 1)] - 2*un[i*ny + j]);
+                    - ((cx * dt)/dx) * (un[i*ny + j] - un[(i-1)*ny + j]) \
+                    - ((cy * dt)/dy) * (un[i*ny + j] - un[i*ny + (j-1)]) \
+                    + ((nu * dt)/(dx * dx)) * (un[(i + 1)*ny + j] + un[(i - 1)*ny + j] - 2*un[i*ny + j]) \
+                    + ((nu * dt)/(dy * dy)) * (un[i*ny + (j + 1)] + un[i*ny + (j - 1)] - 2*un[i*ny + j]);
+
+      v[i*ny + j] = vn[i*ny + j] \
+                    - ((cx * dt)/dx) * (vn[i*ny + j] - vn[(i-1)*ny + j]) \
+                    - ((cy * dt)/dy) * (vn[i*ny + j] - vn[i*ny + (j-1)]) \
+                    + ((nu * dt)/(dx * dx)) * (vn[(i + 1)*ny + j] + vn[(i - 1)*ny + j] - 2*vn[i*ny + j]) \
+                    + ((nu * dt)/(dy * dy)) * (vn[i*ny + (j + 1)] + vn[i*ny + (j - 1)] - 2*vn[i*ny + j]);
     }
   }
 
@@ -194,19 +220,24 @@ int set_boundary_conditions(domain_t *dom, field_t *field)
 {
   int i, j;
   int nx, ny;
-  double *u;
+  double *u, *v;
 
   nx = dom->nx;
   ny = dom->ny;
   u = field->u;
+  v = field->v;
 
   for(i = 0; i < nx; ++i) {
     u[i*ny + (0)] = 1.0;
     u[i*ny + (ny - 1)] = 1.0;
+    v[i*ny + (0)] = 1.0;
+    v[i*ny + (ny - 1)] = 1.0;
   }
   for(j = 0; j < ny; ++j) {
     u[(0*ny) + j] = 1.0;
     u[(nx - 1)*ny + j] = 1.0;
+    v[(0*ny) + j] = 1.0;
+    v[(nx - 1)*ny + j] = 1.0;
   }
 
   return 0;
@@ -214,7 +245,7 @@ int set_boundary_conditions(domain_t *dom, field_t *field)
 
 double advection_velocity(int ndx, field_t* field, int i) 
 {
-  return 0;
+  return 1;
 }
 
 void write_to_file(char* file_name, double *arr, int n) 
@@ -252,12 +283,12 @@ int main()
   int i, num_iters;
   char *file_name;
 
-  file_name = "step7_out.csv";
+  file_name = "step8_out.csv";
 
   dom = create_domain();
   /*-- set_domain: dom, nx, ny, dx, dy, nt, dt --*/
-  set_domain(dom, 81, 81, 2.0/81, 2.0/81, 200, -1);
-  field = create_field(dom, 0.25, 0.05);
+  set_domain(dom, 81, 81, 2.0/80, 2.0/80, 200, -1);
+  field = create_field(dom, 0.09, 0.01);
   set_dt(dom, field);
 
   remove_file_if_exists(file_name);
