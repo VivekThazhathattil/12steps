@@ -12,3 +12,5 @@
 ![step6_anim](https://github.com/VivekThazhathattil/12steps/assets/63693789/c0005a8d-734d-461d-a8c0-707ea9df4605)
 ## Step 7: 2D Diffusion
 ![step7_anim](https://github.com/VivekThazhathattil/12steps/assets/63693789/53f1b1a3-aeeb-4234-b765-0e8893dc0aab)
+## Step 8: 2D Burger's equation
+![step8_anim](https://github.com/VivekThazhathattil/12steps/assets/63693789/6efeb3fb-2b7f-4620-8c5b-59ce2555a861)
